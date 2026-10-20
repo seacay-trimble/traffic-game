@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Four-Way Mastery — 3D US 4-Way Stop Traffic Law Simulator</title>
+    <link rel="stylesheet" href="/src/styles/main.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- 3D WebGL Canvas Mount -->
+      <div id="canvas-container" aria-label="3D US 4-Way Stop Intersection Simulation"></div>
+
+      <!-- Spatial 2D Projected Badges Layer (Outside Fiction, Inside 3D Space) -->
+      <div id="spatial-labels-layer" aria-hidden="true"></div>
+
+      <!-- Meta UI Layer (Screen-Edge Siren Vignette, Hesitation Pulse, Rain/Fog Glass) -->
+      <div id="meta-ui-layer" aria-hidden="true">
+        <div id="meta-siren-left" class="meta-siren-edge left"></div>
+        <div id="meta-siren-right" class="meta-siren-edge right"></div>
+        <div id="meta-hesitation-vignette" class="meta-hesitation"></div>
+        <div id="meta-weather-glass" class="meta-weather-glass"></div>
+      </div>
+
+      <!-- Safe-Area Non-Diegetic HUD & 5-Stage UX Root -->
+      <div id="hud-safe-area"></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
