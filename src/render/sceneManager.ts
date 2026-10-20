@@ -13,27 +13,14 @@ import {
   ReplayFrameSnapshot,
   ScenarioDefinition,
   Vec2,
-  VehicleKind,
   VehicleState,
   WeatherCondition,
 } from '../engine/types';
-
-interface VehicleMeshBundle {
-  root: THREE.Group;
-  bodyGroup: THREE.Group;
-  blinkerFL: THREE.Mesh;
-  blinkerFR: THREE.Mesh;
-  blinkerRL: THREE.Mesh;
-  blinkerRR: THREE.Mesh;
-  brakeLightL: THREE.Mesh;
-  brakeLightR: THREE.Mesh;
-  highBeamConeL: THREE.Mesh;
-  highBeamConeR: THREE.Mesh;
-  sirenBar?: THREE.Group;
-  stopArm?: THREE.Mesh;
-  cockpitGroup?: THREE.Group;
-  steeringWheel?: THREE.Group;
-}
+import {
+  buildCartoonVehicleBundle,
+  createCartoonPedestrianMesh,
+  VehicleMeshBundle,
+} from './vehicleFactory';
 
 export class SceneManager {
   private container: HTMLElement;
@@ -564,7 +551,7 @@ export class SceneManager {
     for (const v of vehicles) {
       let bundle = this.vehicleBundles.get(v.id);
       if (!bundle) {
-        bundle = this.createVehicleMeshBundle(v.kind, v.colorHex, v.isPlayer);
+        bundle = buildCartoonVehicleBundle(v.kind, v.colorHex, v.isPlayer);
         this.vehicleBundles.set(v.id, bundle);
         this.scene.add(bundle.root);
       }
@@ -572,6 +559,25 @@ export class SceneManager {
       bundle.root.position.set(v.worldX, 0, v.worldZ);
       bundle.root.rotation.y = v.headingRad;
       bundle.bodyGroup.rotation.x = -v.pitchRad; // Nose dive when braking
+
+      // Spin 3D cartoon wheels proportionally to distance traveled along spline (s)
+      const wheelRot = -v.s / Math.max(0.2, bundle.wheelRadius);
+      for (const w of bundle.wheels) {
+        w.rotation.x = wheelRot;
+      }
+
+      // Animate LHD steering wheel angle during left/right turns inside the intersection
+      if (bundle.steeringWheel) {
+        const steerAngle =
+          v.s > 0 && v.s < 16
+            ? v.turnIntent === 'LEFT'
+              ? 0.65
+              : v.turnIntent === 'RIGHT'
+              ? -0.65
+              : 0
+            : 0;
+        bundle.steeringWheel.rotation.z = steerAngle;
+      }
 
       // Hide player cockpit interior when in Chase or Overhead camera
       if (bundle.cockpitGroup) {
@@ -618,13 +624,22 @@ export class SceneManager {
     for (const p of pedestrians) {
       let pm = this.pedestrianMeshes.get(p.id);
       if (!pm) {
-        pm = this.createPedestrianMesh();
+        pm = createCartoonPedestrianMesh();
         this.pedestrianMeshes.set(p.id, pm);
         this.scene.add(pm);
       }
       pm.visible = p.active;
       pm.position.set(p.worldX, 0, p.worldZ);
-      pm.position.y = Math.abs(Math.sin(this.blinkerClockSec * 7)) * 0.08;
+      const stride = Math.sin(this.blinkerClockSec * 8);
+      pm.position.y = Math.abs(stride) * 0.06;
+      const legL = pm.getObjectByName('legL');
+      const legR = pm.getObjectByName('legR');
+      const armL = pm.getObjectByName('armL');
+      const armR = pm.getObjectByName('armR');
+      if (legL) legL.rotation.x = stride * 0.45;
+      if (legR) legR.rotation.x = -stride * 0.45;
+      if (armL) armL.rotation.x = -stride * 0.35;
+      if (armR) armR.rotation.x = stride * 0.35;
     }
 
     // Update Camera Pose
@@ -650,7 +665,7 @@ export class SceneManager {
     for (const v of snapshot.vehicles) {
       let bundle = this.vehicleBundles.get(v.id);
       if (!bundle) {
-        bundle = this.createVehicleMeshBundle(v.kind, v.colorHex, v.isPlayer);
+        bundle = buildCartoonVehicleBundle(v.kind, v.colorHex, v.isPlayer);
         this.vehicleBundles.set(v.id, bundle);
         this.scene.add(bundle.root);
       }
@@ -658,6 +673,11 @@ export class SceneManager {
       bundle.root.rotation.y = v.headingRad;
       bundle.bodyGroup.rotation.x = -v.pitchRad;
       if (bundle.cockpitGroup) bundle.cockpitGroup.visible = false;
+
+      const wheelRot = -v.s / Math.max(0.2, bundle.wheelRadius);
+      for (const w of bundle.wheels) {
+        w.rotation.x = wheelRot;
+      }
 
       const leftActive = (v.turnSignal === 'LEFT' || v.turnSignal === 'HAZARD') && blinkerOn;
       const rightActive = (v.turnSignal === 'RIGHT' || v.turnSignal === 'HAZARD') && blinkerOn;
@@ -852,247 +872,5 @@ export class SceneManager {
         v.stopOrderBadge ?? timeStr
       }`;
     }
-  }
-
-  private createVehicleMeshBundle(
-    kind: VehicleKind,
-    colorHex: number,
-    isPlayer: boolean
-  ): VehicleMeshBundle {
-    const root = new THREE.Group();
-    const bodyGroup = new THREE.Group();
-    root.add(bodyGroup);
-
-    const isTruck = kind === 'BOX_TRUCK';
-    const isBus = kind === 'SCHOOL_BUS';
-    const isCyclist = kind === 'CYCLIST';
-
-    const width = isTruck || isBus ? 2.35 : isCyclist ? 0.55 : 1.92;
-    const length = isBus ? 7.2 : isTruck ? 5.8 : isCyclist ? 1.75 : 4.35;
-    const chassisHeight = isBus ? 2.4 : isTruck ? 2.85 : isCyclist ? 1.1 : 1.38;
-
-    if (!isPlayer) {
-      const chassisMat = new THREE.MeshStandardMaterial({
-        color: colorHex,
-        roughness: 0.35,
-        metalness: 0.25,
-      });
-
-      if (isCyclist) {
-        const rider = new THREE.Mesh(
-          new THREE.BoxGeometry(0.5, 1.45, 0.9),
-          chassisMat
-        );
-        rider.position.y = 0.85;
-        rider.castShadow = true;
-        bodyGroup.add(rider);
-      } else {
-        const lowerBody = new THREE.Mesh(
-          new THREE.BoxGeometry(width, chassisHeight * 0.55, length),
-          chassisMat
-        );
-        lowerBody.position.y = chassisHeight * 0.32;
-        lowerBody.castShadow = true;
-        bodyGroup.add(lowerBody);
-
-        const cabinLength = isBus || isTruck ? length * 0.85 : length * 0.54;
-        const cabin = new THREE.Mesh(
-          new THREE.BoxGeometry(width * 0.9, chassisHeight * 0.5, cabinLength),
-          new THREE.MeshStandardMaterial({
-            color: isTruck ? 0xf8fafc : isBus ? 0xfacc15 : colorHex,
-            roughness: 0.3,
-          })
-        );
-        cabin.position.set(0, chassisHeight * 0.82, isTruck ? 0.35 : 0);
-        cabin.castShadow = true;
-        bodyGroup.add(cabin);
-      }
-    } else {
-      // Player Exterior Mesh (visible in Chase Cam & Tactical Overhead Replay)
-      const extChassis = new THREE.Mesh(
-        new THREE.BoxGeometry(1.92, 0.85, 4.35),
-        new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.3 })
-      );
-      extChassis.position.y = 0.5;
-      bodyGroup.add(extChassis);
-
-      // 1st-Person Left-Hand-Drive (LHD) Cockpit Interior (visible in COCKPIT_POV)
-      const cockpitGroup = new THREE.Group();
-      const dashMat = new THREE.MeshLambertMaterial({ color: 0x1e293b });
-      const pillarMat = new THREE.MeshLambertMaterial({ color: 0x0f172a });
-
-      // Hood visible out the front windshield
-      const hood = new THREE.Mesh(
-        new THREE.BoxGeometry(1.82, 0.12, 1.5),
-        new THREE.MeshStandardMaterial({ color: 0x059669, roughness: 0.25 })
-      );
-      hood.position.set(0, 0.88, -1.55);
-      cockpitGroup.add(hood);
-
-      // Dashboard cowl
-      const dash = new THREE.Mesh(new THREE.BoxGeometry(1.86, 0.36, 0.55), dashMat);
-      dash.position.set(0, 0.88, -0.78);
-      cockpitGroup.add(dash);
-
-      // Left-Hand-Drive Steering Wheel (positioned at x = -0.42m on the LEFT side!)
-      const steeringWheel = new THREE.Group();
-      steeringWheel.position.set(-0.42, 1.04, -0.52);
-      steeringWheel.rotation.x = 0.35;
-      const rim = new THREE.Mesh(
-        new THREE.TorusGeometry(0.17, 0.022, 10, 24),
-        pillarMat
-      );
-      steeringWheel.add(rim);
-      cockpitGroup.add(steeringWheel);
-
-      // Slim A-Pillars (Left & Right)
-      const leftPillar = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.035, 0.045, 0.85, 8),
-        pillarMat
-      );
-      leftPillar.position.set(-0.92, 1.32, -0.72);
-      leftPillar.rotation.z = -0.18;
-      cockpitGroup.add(leftPillar);
-
-      const rightPillar = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.035, 0.045, 0.85, 8),
-        pillarMat
-      );
-      rightPillar.position.set(0.92, 1.32, -0.72);
-      rightPillar.rotation.z = 0.18;
-      cockpitGroup.add(rightPillar);
-
-      bodyGroup.add(cockpitGroup);
-      (bodyGroup as unknown as { _cockpit: THREE.Group; _wheel: THREE.Group })._cockpit =
-        cockpitGroup;
-      (bodyGroup as unknown as { _cockpit: THREE.Group; _wheel: THREE.Group })._wheel =
-        steeringWheel;
-    }
-
-    // Blinkers (FL, FR, RL, RR) — Note: Vehicle forward in local space is -Z!
-    const halfW = width * 0.46;
-    const halfL = length * 0.5;
-    const blinkerGeo = new THREE.SphereGeometry(0.13, 8, 8);
-    const makeBlinker = (x: number, z: number) => {
-      const m = new THREE.Mesh(
-        blinkerGeo,
-        new THREE.MeshBasicMaterial({ color: 0x332200 })
-      );
-      m.position.set(x, 0.65, z);
-      bodyGroup.add(m);
-      return m;
-    };
-
-    const blinkerFL = makeBlinker(-halfW, -halfL);
-    const blinkerFR = makeBlinker(halfW, -halfL);
-    const blinkerRL = makeBlinker(-halfW, halfL);
-    const blinkerRR = makeBlinker(halfW, halfL);
-
-    // Brake Lights (Rear Left & Rear Right at +halfL)
-    const brakeGeo = new THREE.BoxGeometry(0.28, 0.14, 0.08);
-    const brakeLightL = new THREE.Mesh(
-      brakeGeo,
-      new THREE.MeshBasicMaterial({ color: 0x450a0a })
-    );
-    brakeLightL.position.set(-halfW * 0.72, 0.72, halfL + 0.02);
-    bodyGroup.add(brakeLightL);
-
-    const brakeLightR = new THREE.Mesh(
-      brakeGeo,
-      new THREE.MeshBasicMaterial({ color: 0x450a0a })
-    );
-    brakeLightR.position.set(halfW * 0.72, 0.72, halfL + 0.02);
-    bodyGroup.add(brakeLightR);
-
-    // High-Beam Courtesy Flash Cones (for Tier 7 Polite Waver)
-    const coneGeo = new THREE.ConeGeometry(0.65, 3.8, 12, 1, true);
-    const coneMat = new THREE.MeshBasicMaterial({
-      color: 0xfef08a,
-      transparent: true,
-      opacity: 0.45,
-      side: THREE.DoubleSide,
-    });
-    const highBeamConeL = new THREE.Mesh(coneGeo, coneMat);
-    highBeamConeL.rotation.x = Math.PI / 2;
-    highBeamConeL.position.set(-halfW * 0.7, 0.65, -halfL - 1.9);
-    highBeamConeL.visible = false;
-    bodyGroup.add(highBeamConeL);
-
-    const highBeamConeR = new THREE.Mesh(coneGeo, coneMat);
-    highBeamConeR.rotation.x = Math.PI / 2;
-    highBeamConeR.position.set(halfW * 0.7, 0.65, -halfL - 1.9);
-    highBeamConeR.visible = false;
-    bodyGroup.add(highBeamConeR);
-
-    // Optional Emergency Lightbar (Police / Ambulance)
-    let sirenBar: THREE.Group | undefined;
-    if (kind === 'AMBULANCE' || kind === 'POLICE') {
-      sirenBar = new THREE.Group();
-      sirenBar.position.set(0, chassisHeight + 0.25, 0);
-      const redOrb = new THREE.Mesh(
-        new THREE.SphereGeometry(0.22, 8, 8),
-        new THREE.MeshBasicMaterial({ color: 0xef4444 })
-      );
-      redOrb.position.x = -0.35;
-      const blueOrb = new THREE.Mesh(
-        new THREE.SphereGeometry(0.22, 8, 8),
-        new THREE.MeshBasicMaterial({ color: 0x3b82f6 })
-      );
-      blueOrb.position.x = 0.35;
-      sirenBar.add(redOrb, blueOrb);
-      bodyGroup.add(sirenBar);
-    }
-
-    // Optional School Bus Red Octagonal Stop Arm (on the LEFT driver side of the bus!)
-    let stopArm: THREE.Mesh | undefined;
-    if (kind === 'SCHOOL_BUS') {
-      stopArm = new THREE.Mesh(
-        new THREE.BoxGeometry(0.75, 0.65, 0.08),
-        new THREE.MeshBasicMaterial({ color: 0xef4444 })
-      );
-      stopArm.position.set(-width * 0.5 - 0.38, 1.35, -length * 0.2);
-      bodyGroup.add(stopArm);
-    }
-
-    const customRefs = bodyGroup as unknown as {
-      _cockpit?: THREE.Group;
-      _wheel?: THREE.Group;
-    };
-
-    return {
-      root,
-      bodyGroup,
-      blinkerFL,
-      blinkerFR,
-      blinkerRL,
-      blinkerRR,
-      brakeLightL,
-      brakeLightR,
-      highBeamConeL,
-      highBeamConeR,
-      sirenBar,
-      stopArm,
-      cockpitGroup: customRefs._cockpit,
-      steeringWheel: customRefs._wheel,
-    };
-  }
-
-  private createPedestrianMesh(): THREE.Group {
-    const g = new THREE.Group();
-    const torso = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.24, 0.28, 1.15, 8),
-      new THREE.MeshLambertMaterial({ color: 0x38bdf8 })
-    );
-    torso.position.y = 0.75;
-    torso.castShadow = true;
-    g.add(torso);
-
-    const head = new THREE.Mesh(
-      new THREE.SphereGeometry(0.22, 10, 10),
-      new THREE.MeshLambertMaterial({ color: 0xfde68a })
-    );
-    head.position.y = 1.52;
-    g.add(head);
-    return g;
   }
 }

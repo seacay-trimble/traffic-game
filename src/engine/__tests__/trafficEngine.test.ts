@@ -331,3 +331,37 @@ describe('Simulation State Machine & 60-Second Replay Buffer', () => {
     expect(buf.getSnapshotAtTime(0.5)).not.toBeNull();
   });
 });
+
+describe('3D Cartoon Vehicle & Pedestrian Mesh Factory', () => {
+  it('builds high-detail 3D cartoon meshes with spinning wheels for all 7 vehicle types and player LHD cockpit', async () => {
+    const { buildCartoonVehicleBundle, createCartoonPedestrianMesh } = await import(
+      '../../render/vehicleFactory'
+    );
+
+    const playerBundle = buildCartoonVehicleBundle('SEDAN', 0x10b981, true);
+    expect(playerBundle.wheels.length).toBe(4);
+    expect(playerBundle.cockpitGroup).toBeDefined();
+    expect(playerBundle.steeringWheel).toBeDefined();
+
+    const kinds = [
+      'SEDAN',
+      'SUV',
+      'BOX_TRUCK',
+      'POLICE',
+      'AMBULANCE',
+      'SCHOOL_BUS',
+      'CYCLIST',
+    ] as const;
+
+    for (const kind of kinds) {
+      const b = buildCartoonVehicleBundle(kind, 0x3b82f6, false);
+      expect(b.wheels.length).toBeGreaterThanOrEqual(2);
+      expect(b.root.children.length).toBeGreaterThan(0);
+    }
+
+    const ped = createCartoonPedestrianMesh();
+    expect(ped.getObjectByName('legL')).toBeDefined();
+    expect(ped.getObjectByName('armR')).toBeDefined();
+  });
+});
+

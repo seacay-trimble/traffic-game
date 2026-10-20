@@ -315,6 +315,66 @@ body,
   transform: scale(0.97);
 }
 
+.icon-btn.quit-btn {
+  background: rgba(127, 29, 29, 0.85);
+  border-color: rgba(248, 113, 113, 0.55);
+  color: #fecaca;
+}
+
+.icon-btn.quit-btn:hover {
+  background: rgba(185, 28, 28, 0.95);
+  color: #ffffff;
+}
+
+.danger-btn {
+  padding: 11px 20px;
+  border-radius: 10px;
+  border: 1px solid rgba(248, 113, 113, 0.6);
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  color: #ffffff;
+  font-weight: 900;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.35);
+}
+
+.danger-btn:hover {
+  filter: brightness(1.08);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.stat-card {
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(30, 41, 59, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  text-align: center;
+}
+
+.stat-value {
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 900;
+  color: var(--text-primary);
+}
+
+.stat-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 /* Middle Foveal Windshield Zone — 100% Unobstructed in Center, Peripheral Prompts on Left/Right Edges */
 .hud-peripheral-band {
   display: flex;

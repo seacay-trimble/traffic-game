@@ -58,6 +58,20 @@ class TrafficGameApp {
       const code = e.code;
       this.keysDown.add(code);
 
+      if (code === 'Escape') {
+        e.preventDefault();
+        if (this.ui.quitModalOpen) {
+          this.ui.quitModalOpen = false;
+        } else {
+          this.ui.openQuitModal();
+        }
+        return;
+      }
+
+      if (this.ui.quitModalOpen || this.ui.gameExited) {
+        return;
+      }
+
       if (this.sim.stage === 'STAGE_1_BRIEFING' && (code === 'Enter' || code === 'Space')) {
         e.preventDefault();
         this.sim.startDrivingFromBriefing();
@@ -66,6 +80,8 @@ class TrafficGameApp {
 
       if (code === 'KeyC') {
         this.ui.toggleCameraMode();
+      } else if (code === 'KeyM') {
+        this.ui.toggleAudioMute();
       } else if (code === 'KeyR') {
         this.loadScenario(this.sim.scenario, false);
       } else if (code === 'KeyH') {
@@ -132,7 +148,9 @@ class TrafficGameApp {
     const input = this.gatherInput();
 
     const prevStage = this.sim.stage;
-    this.sim.step(dtSec, input);
+    if (!this.ui.quitModalOpen && !this.ui.gameExited) {
+      this.sim.step(dtSec, input);
+    }
 
     // If we just transitioned into Stage 5 Outcome Replay, populate 3D trajectory ribbons
     if (prevStage !== 'STAGE_5_OUTCOME_REPLAY' && this.sim.stage === 'STAGE_5_OUTCOME_REPLAY') {

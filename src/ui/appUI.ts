@@ -15,6 +15,8 @@ export class AppUIController {
   public replayPlayheadSec = 0;
   public replayPlaying = true;
   private settingsModalOpen = false;
+  public quitModalOpen = false;
+  public gameExited = false;
 
   // Callbacks to main controller
   private onScenarioChange: (scenario: ScenarioDefinition, showBriefing: boolean) => void;
@@ -85,7 +87,7 @@ export class AppUIController {
     // Update Meta UI Layer (Siren edges, Hesitation vignette, Weather glass)
     this.updateMetaEffects();
 
-    const stageKey = `${this.sim.stage}_${this.isInspectingReplayOnPass}_${this.settingsModalOpen}`;
+    const stageKey = `${this.sim.stage}_${this.isInspectingReplayOnPass}_${this.settingsModalOpen}_${this.quitModalOpen}_${this.gameExited}`;
     if (stageKey !== this.lastRenderedStage) {
       this.lastRenderedStage = stageKey;
       if (this.sim.stage === 'STAGE_5_OUTCOME_REPLAY') {
@@ -93,6 +95,10 @@ export class AppUIController {
         this.replayPlaying = true;
       }
       this.renderCurrentStageDOM(false);
+    }
+
+    if (this.settingsModalOpen || this.quitModalOpen || this.gameExited) {
+      return;
     }
 
     if (
@@ -130,6 +136,16 @@ export class AppUIController {
   }
 
   private renderCurrentStageDOM(_force: boolean): void {
+    if (this.gameExited) {
+      this.renderGameExitedScreen();
+      return;
+    }
+
+    if (this.quitModalOpen) {
+      this.renderQuitModal();
+      return;
+    }
+
     if (this.settingsModalOpen) {
       this.renderSettingsModal();
       return;
@@ -193,9 +209,14 @@ export class AppUIController {
               <span class="tier-pill">US 4-Way Stop Curriculum · Tier ${sc.tier} of 7</span>
               <h1 class="modal-title" style="margin-top:8px;">${sc.title}</h1>
             </div>
-            <button class="icon-btn" id="btn-open-settings" title="Accessibility & State Law Settings">
-              ⚙ Settings
-            </button>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <button class="icon-btn" id="btn-open-settings" title="Accessibility & State Law Settings">
+                ⚙ Settings
+              </button>
+              <button class="icon-btn quit-btn" id="btn-briefing-quit" title="Quit Game [Esc]">
+                🚪 Quit Game
+              </button>
+            </div>
           </div>
 
           <div class="tier-selector-strip">${tierTabsHtml}</div>
@@ -271,6 +292,10 @@ export class AppUIController {
       this.settingsModalOpen = true;
       this.renderCurrentStageDOM(true);
     });
+
+    document.getElementById('btn-briefing-quit')?.addEventListener('click', () => {
+      this.openQuitModal();
+    });
   }
 
   private renderDrivingHUDTemplate(): void {
@@ -309,7 +334,11 @@ export class AppUIController {
           </div>
           <button class="icon-btn" id="btn-hud-briefing" title="Open Scenario Briefing & Tier Picker">📋 Scenarios</button>
           <button class="icon-btn" id="btn-hud-reset" title="Restart Scenario [R]">↺ Retry [R]</button>
+          <button class="icon-btn" id="btn-hud-mute" title="Toggle Sound Mute [M]">${
+            this.prefs.state.soundMuted ? '🔇 Muted' : '🔊 Audio'
+          }</button>
           <button class="icon-btn" id="btn-hud-settings" title="Settings & Accessibility">⚙</button>
+          <button class="icon-btn quit-btn" id="btn-hud-quit" title="Quit Game [Esc]">🚪 Quit [Esc]</button>
         </div>
       </div>
 
@@ -417,6 +446,12 @@ export class AppUIController {
     document.getElementById('btn-hud-settings')?.addEventListener('click', () => {
       this.settingsModalOpen = true;
       this.renderCurrentStageDOM(true);
+    });
+    document.getElementById('btn-hud-mute')?.addEventListener('click', () => {
+      this.toggleAudioMute();
+    });
+    document.getElementById('btn-hud-quit')?.addEventListener('click', () => {
+      this.openQuitModal();
     });
     document.getElementById('btn-pedal-cam')?.addEventListener('click', () => {
       this.toggleCameraMode();
@@ -583,6 +618,7 @@ export class AppUIController {
           </div>
 
           <div class="cta-row">
+            <button class="icon-btn quit-btn" id="btn-pass-quit" style="margin-right:auto;">🚪 Quit Game</button>
             <button class="secondary-btn" id="btn-pass-inspect-replay">🎥 Inspect 3D Tactical Replay</button>
             <button class="secondary-btn" id="btn-pass-retry">↺ Replay Scenario</button>
             <button class="primary-btn" id="btn-pass-next">Next: ${nextScenario.title.split('—')[0]} →</button>
@@ -590,6 +626,10 @@ export class AppUIController {
         </div>
       </div>
     `;
+
+    document.getElementById('btn-pass-quit')?.addEventListener('click', () => {
+      this.openQuitModal();
+    });
 
     document.getElementById('btn-pass-inspect-replay')?.addEventListener('click', () => {
       this.isInspectingReplayOnPass = true;
@@ -660,6 +700,7 @@ export class AppUIController {
           <div style="display:flex; gap:8px;">
             <button class="icon-btn" id="btn-replay-scenarios">📋 All Tiers</button>
             <button class="primary-btn" id="btn-replay-retry">↺ Retry Scenario [R]</button>
+            <button class="icon-btn quit-btn" id="btn-replay-quit">🚪 Quit Game</button>
           </div>
         </div>
 
@@ -792,6 +833,9 @@ export class AppUIController {
       this.sim.stage = 'STAGE_1_BRIEFING';
       this.renderCurrentStageDOM(true);
     });
+    document.getElementById('btn-replay-quit')?.addEventListener('click', () => {
+      this.openQuitModal();
+    });
     document.getElementById('btn-reset-ofm')?.addEventListener('click', () => {
       this.sim.ofmTotalPoints = 0;
       this.renderCurrentStageDOM(true);
@@ -912,10 +956,164 @@ export class AppUIController {
     this.sim.showBanner(
       this.activeCameraMode === 'COCKPIT_POV'
         ? 'Camera [C]: 1st-Person US Left-Hand-Drive Cockpit POV'
-        : 'Camera [C]: 3rd-Person Chase Cam (3-Zone Ground Bands Visible)',
+        : 'Camera [C]: 3rd-Person Chase Cam (3D Cartoon Vehicles & 3-Zone Bands)',
       'info',
       2.2
     );
+  }
+
+  public toggleAudioMute(): void {
+    const nextMuted = !this.prefs.state.soundMuted;
+    this.prefs.update({ soundMuted: nextMuted });
+    this.sim.audio.muted = nextMuted;
+    const muteBtn = document.getElementById('btn-hud-mute');
+    if (muteBtn) {
+      muteBtn.textContent = nextMuted ? '🔇 Muted' : '🔊 Audio';
+    }
+    this.sim.showBanner(
+      nextMuted ? 'Audio Muted [M]' : 'Audio Enabled [M]',
+      'info',
+      1.6
+    );
+  }
+
+  public openQuitModal(): void {
+    if (this.gameExited) return;
+    this.quitModalOpen = true;
+    this.settingsModalOpen = false;
+    this.renderCurrentStageDOM(true);
+  }
+
+  private renderQuitModal(): void {
+    const totalScenarios = SCENARIO_CATALOG.length;
+    const completedCount = this.sim.completedScenarioIds.size;
+    let totalStars = 0;
+    for (const st of this.sim.tierStars.values()) {
+      totalStars += st;
+    }
+
+    const standingText =
+      this.sim.ofmTotalPoints >= 12
+        ? 'License Suspended (12+ OFM pts)'
+        : this.sim.ofmTotalPoints >= 8
+        ? 'Administrative Review Warning (8+ OFM pts)'
+        : 'Good Standing (Clean US Driving Record)';
+
+    this.hudSafeArea.innerHTML = `
+      <div class="modal-backdrop">
+        <div class="modal-card">
+          <div class="modal-header">
+            <div>
+              <span class="tier-pill" style="background:rgba(239,68,68,0.24); border-color:#f87171; color:#fecaca;">
+                SESSION PAUSED
+              </span>
+              <h2 class="modal-title" style="margin-top:8px;">🚪 Quit US 4-Way Stop Mastery?</h2>
+            </div>
+            <button class="icon-btn" id="btn-quit-cancel">✕ Resume [Esc]</button>
+          </div>
+
+          <p class="modal-subtitle">
+            Review your current driving session summary below before exiting or returning to the intersection.
+          </p>
+
+          <div class="stats-grid tabular-nums">
+            <div class="stat-card">
+              <span class="stat-value">${completedCount} / ${totalScenarios}</span>
+              <span class="stat-label">Scenarios Passed</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-value" style="color:var(--color-gold);">★ ${totalStars}</span>
+              <span class="stat-label">Mastery Stars</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-value" style="color:${
+                this.sim.ofmTotalPoints >= 8 ? 'var(--color-danger)' : 'var(--color-safe)'
+              };">${this.sim.ofmTotalPoints} / 12</span>
+              <span class="stat-label">OFM Violation Pts</span>
+            </div>
+          </div>
+
+          <div class="rule-box rht-box">
+            <div class="rule-box-title">US Dept. of State OFM License Standing</div>
+            <div class="rule-box-body">${standingText}</div>
+          </div>
+
+          <div class="cta-row" style="justify-content:space-between; flex-wrap:wrap;">
+            <button class="secondary-btn" id="btn-quit-reset-all">
+              🔄 Reset All Progress
+            </button>
+            <div style="display:flex; gap:10px;">
+              <button class="secondary-btn" id="btn-quit-resume">
+                ▶ Resume Driving
+              </button>
+              <button class="danger-btn" id="btn-quit-confirm">
+                🚪 Quit Game Now
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const resume = () => {
+      this.quitModalOpen = false;
+      this.renderCurrentStageDOM(true);
+    };
+
+    document.getElementById('btn-quit-cancel')?.addEventListener('click', resume);
+    document.getElementById('btn-quit-resume')?.addEventListener('click', resume);
+
+    document.getElementById('btn-quit-reset-all')?.addEventListener('click', () => {
+      this.sim.ofmTotalPoints = 0;
+      this.sim.completedScenarioIds.clear();
+      this.sim.tierStars.clear();
+      this.quitModalOpen = false;
+      this.onScenarioChange(SCENARIO_CATALOG[0], true);
+    });
+
+    document.getElementById('btn-quit-confirm')?.addEventListener('click', () => {
+      this.quitModalOpen = false;
+      this.gameExited = true;
+      this.sim.audio.muted = true;
+      try {
+        window.close();
+      } catch {
+        // Fallback to clean Exited Screen if browser blocks window.close()
+      }
+      this.renderCurrentStageDOM(true);
+    });
+  }
+
+  private renderGameExitedScreen(): void {
+    const totalScenarios = SCENARIO_CATALOG.length;
+    const completedCount = this.sim.completedScenarioIds.size;
+
+    this.hudSafeArea.innerHTML = `
+      <div class="modal-backdrop" style="background:rgba(6, 10, 18, 0.92);">
+        <div class="modal-card" style="text-align:center; align-items:center; padding:36px 32px;">
+          <span class="tier-pill">SESSION ENDED</span>
+          <h1 class="modal-title" style="font-size:26px; margin-top:6px;">
+            Thanks for Training with US 4-Way Stop Mastery! 🚗🛑
+          </h1>
+          <p class="modal-subtitle" style="max-width:520px;">
+            Simulation and audio have been stopped. You completed <strong>${completedCount} of ${totalScenarios}</strong> curriculum scenarios with <strong>${this.sim.ofmTotalPoints} OFM points</strong>.
+            Safe travels on US Right-Hand Traffic roads!
+          </p>
+
+          <div class="cta-row" style="justify-content:center; margin-top:12px;">
+            <button class="primary-btn" id="btn-relaunch-game">
+              ▶ Launch New Driving Session
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('btn-relaunch-game')?.addEventListener('click', () => {
+      this.gameExited = false;
+      this.sim.audio.muted = this.prefs.state.soundMuted;
+      this.onScenarioChange(SCENARIO_CATALOG[0], true);
+    });
   }
 
   public getLookDirectionFromButtons(): HeadLookDirection | null {
