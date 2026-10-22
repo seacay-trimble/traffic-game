@@ -4,7 +4,7 @@
 
 A browser-based 3D traffic simulation and training game built with **Three.js**, **TypeScript**, and **Vite** to help international drivers and newcomers master **US 4-Way Stop (`ALL WAY`) intersections** and **US Right-Hand Traffic (RHT)** laws across 7 progressively harder tiers.
 
-Grounded in the **Uniform Vehicle Code (UVC)** and the **U.S. Department of State Office of Foreign Missions (OFM) Driving Guide** (`docs/references/driving-practices-in-the-US.pdf`).
+Grounded in the **Uniform Vehicle Code (UVC)** and the **U.S. Department of State Office of Foreign Missions (OFM) Driving Guide**.
 
 ---
 
@@ -114,8 +114,7 @@ traffic-game/
 ├── docs/
 │   ├── PRD.md                        # Product Requirements Document (v1.3)
 │   ├── handovers/                    # Session architecture & implementation handovers
-│   ├── images/                       # Annotated HUD & camera concept renders
-│   └── references/                   # U.S. Dept. of State OFM Driving Guide PDF
+│   └── images/                       # Annotated HUD & camera concept renders
 ├── src/
 │   ├── engine/
 │   │   ├── types.ts                  # Core data contracts, zones, traits, and OFM types
