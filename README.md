@@ -1,5 +1,7 @@
 # US 4-Way Stop: Right-of-Way Mastery
 
+🎮 **Play Live in Browser (GitHub Pages):** **[https://seacay-trimble.github.io/traffic-game/](https://seacay-trimble.github.io/traffic-game/)**
+
 A browser-based 3D traffic simulation and training game built with **Three.js**, **TypeScript**, and **Vite** to help international drivers and newcomers master **US 4-Way Stop (`ALL WAY`) intersections** and **US Right-Hand Traffic (RHT)** laws across 7 progressively harder tiers.
 
 Grounded in the **Uniform Vehicle Code (UVC)** and the **U.S. Department of State Office of Foreign Missions (OFM) Driving Guide** (`docs/references/driving-practices-in-the-US.pdf`).
